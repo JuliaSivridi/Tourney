@@ -1,4 +1,4 @@
-name: Deploy to Oracle Cloud
+name: Deploy to server
 
 on:
   push:
@@ -12,9 +12,9 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
+          username: stler
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd ~/tourney
+            cd /home/stler/tg-tourney
             git pull
             docker compose up -d --build
