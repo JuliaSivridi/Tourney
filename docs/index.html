@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tournament Bracket</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1 id="tournament-title">Tournament</h1>
+      <div class="tabs">
+        <button class="tab active" data-tab="bracket">Bracket</button>
+        <button class="tab" data-tab="standings">Standings</button>
+      </div>
+    </header>
+
+    <div id="bracket-view" class="view active">
+      <div id="bracket-scroll">
+        <div id="bracket-container"></div>
+      </div>
+    </div>
+
+    <div id="standings-view" class="view">
+      <table id="standings-table">
+        <thead><tr><th>#</th><th>Player</th><th>W</th><th>L</th><th>Played</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="bracket.js"></script>
+</body>
+</html>
