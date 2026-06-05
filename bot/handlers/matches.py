@@ -43,13 +43,14 @@ def build_keyboard(state: dict, user_id: int, lang: str) -> InlineKeyboardMarkup
 
         # Callback for each player button
         def cb(slot: int, player) -> str:
-            if already_decided:
-                return f"m:{m_idx}:x"              # nothing
+            # Replay check FIRST — must come before already_decided
             if m_idx == last_m and slot == last_p_l:
                 return f"m:{m_idx}:{slot}:replay"  # undo last result
+            if already_decided:
+                return f"m:{m_idx}:x"              # decided, no action
             if player["state"] == 0:
                 return f"m:{m_idx}:{slot}:pick"    # pick winner
-            return f"m:{m_idx}:x"                  # nothing
+            return f"m:{m_idx}:x"
 
         rows.append([
             InlineKeyboardButton(
@@ -122,7 +123,16 @@ async def handle_match_pick(cb: CallbackQuery, session: AsyncSession):
         fmt   = gs.format
 
         if action == "replay":
+            # Undo only — do NOT apply a new result
             state = eng.undo_result(state, m_idx, fmt)
+            gs.state_json = eng.dumps(state)
+            await session.commit()
+            kb = build_keyboard(state, gs.user_id, lang)
+            try:
+                await cb.message.edit_text(t(lang, "matches_header"), reply_markup=kb)
+            except Exception:
+                pass
+            return
 
         state = eng.apply_result(state, m_idx, winner_slot, fmt)
         gs.state_json = eng.dumps(state)
@@ -141,7 +151,6 @@ async def handle_match_pick(cb: CallbackQuery, session: AsyncSession):
                 reply_markup=kb,
             )
         except Exception:
-            # Fallback: send new message if edit fails
             msg = await cb.message.answer(
                 t(lang, "win_msg", winner=winner_name, match=m_idx),
                 reply_markup=kb,

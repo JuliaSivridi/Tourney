@@ -50,35 +50,45 @@ def _assign_rounds(match_list: list, fmt: str, n_players: int) -> list[dict]:
             result.append({**m, "round": round_map.get(i, r - 1), "section": "winners"})
 
     elif fmt == "double_elim":
-        w_indices = [i for i, m in enumerate(match_list) if m.get("grid") is not False]
-        l_indices = [i for i, m in enumerate(match_list) if m.get("grid") is False]
+        # grid=True  → winners bracket
+        # grid=False → losers bracket
+        # grid=None  → grand final / not yet assigned
+        true_idx  = [i for i, m in enumerate(match_list) if m.get("grid") is True]
+        false_idx = [i for i, m in enumerate(match_list) if m.get("grid") is False]
 
-        w_round_map = {}
+        # Winners: SE-like round assignment
+        w_round = {}
         idx, r, rem = 0, 1, n_players
         while rem > 1:
             cnt = rem // 2
             for j in range(cnt):
-                if idx + j < len(w_indices):
-                    w_round_map[w_indices[idx + j]] = r
+                if idx + j < len(true_idx):
+                    w_round[true_idx[idx + j]] = r
             idx += cnt
             rem = cnt
             r += 1
-        # Grand final(s) — remaining winner-bracket entries
-        for i in w_indices:
-            if i not in w_round_map:
-                w_round_map[i] = r
+        # Remaining winners matches (odd bracket, etc.) — sequential rounds
+        for ti in true_idx:
+            if ti not in w_round:
+                w_round[ti] = r
+                r += 1
+        max_w_round = max(w_round.values(), default=1)
 
-        # Losers bracket: rounds 1, 1, 2, 2, 3, 3 … (pair of rounds)
-        l_round_map = {}
-        for j, li in enumerate(l_indices):
-            l_round_map[li] = j // 2 + 1
+        # Losers bracket: pairs of indices share a round
+        l_round = {}
+        for j, li in enumerate(false_idx):
+            l_round[li] = j // 2 + 1
 
-        sections = {i: "winners" for i in w_indices}
-        sections.update({i: "losers" for i in l_indices})
+        # Grand final (grid=None): comes after all winners rounds
+        gf_round = max_w_round + 1
 
         for i, m in enumerate(match_list):
-            rnd = w_round_map.get(i) or l_round_map.get(i) or 1
-            result.append({**m, "round": rnd, "section": sections.get(i, "winners")})
+            if m.get("grid") is False:
+                result.append({**m, "round": l_round.get(i, 1), "section": "losers"})
+            elif m.get("grid") is None:
+                result.append({**m, "round": gf_round, "section": "winners"})
+            else:
+                result.append({**m, "round": w_round.get(i, max_w_round), "section": "winners"})
 
     elif fmt == "round_robin":
         # Distribute into rounds: n/2 matches per round (round robin rule)
