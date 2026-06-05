@@ -30,5 +30,6 @@
   "cancelled": "❌ Скасовано.",
   "no_active": "Немає активного турніру. Надішли /newgame щоб почати.",
   "matches_header": "Обери переможця в кожному матчі:",
-  "state_corrupted": "⚠️ Стан турніру застарів. Почни нову гру: /newgame"
+  "state_corrupted": "⚠️ Стан турніру застарів. Почни нову гру: /newgame",
+  "new_game_hint": "Нова гра: /newgame"
 }

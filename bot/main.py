@@ -167,6 +167,9 @@ async def _sync_inline_finished(app: web.Application, uid: int, gs, state: dict,
             lines.append(icon + " " + ", ".join(f"_{n}_" for n in by_played[cnt]))
             place += len(by_played[cnt])
 
+        lines.append("")
+        lines.append(t(lang, "new_game_hint"))
+
         await bot.send_message(
             chat_id=uid,
             text="\n".join(lines),

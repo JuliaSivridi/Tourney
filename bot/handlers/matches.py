@@ -192,6 +192,9 @@ async def _show_results(
         lines.append(icon + " " + ", ".join(f"_{n}_" for n in by_played[cnt]))
         place += len(by_played[cnt])
 
+    lines.append("")
+    lines.append(t(lang, "new_game_hint"))
+
     # Keep the keyboard message — remove webapp button, preserve current text
     kb = build_keyboard(state, gs.user_id, lang, show_webapp=False)
     try:

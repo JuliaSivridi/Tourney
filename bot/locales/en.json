@@ -30,5 +30,6 @@
   "cancelled": "❌ Cancelled.",
   "no_active": "No active tournament. Send /newgame to start.",
   "matches_header": "Choose the winner in each match:",
-  "state_corrupted": "⚠️ Tournament state is outdated. Please start a new game: /newgame"
+  "state_corrupted": "⚠️ Tournament state is outdated. Please start a new game: /newgame",
+  "new_game_hint": "New game: /newgame"
 }

@@ -30,5 +30,6 @@
   "cancelled": "❌ Cancelado.",
   "no_active": "Nenhum torneio ativo. Envie /newgame para começar.",
   "matches_header": "Escolha o vencedor em cada partida:",
-  "state_corrupted": "⚠️ Estado do torneio desatualizado. Por favor inicie um novo jogo: /newgame"
+  "state_corrupted": "⚠️ Estado do torneio desatualizado. Por favor inicie um novo jogo: /newgame",
+  "new_game_hint": "Novo jogo: /newgame"
 }

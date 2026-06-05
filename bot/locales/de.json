@@ -30,5 +30,6 @@
   "cancelled": "❌ Abgebrochen.",
   "no_active": "Kein aktives Turnier. Sende /newgame zum Starten.",
   "matches_header": "Wähle den Sieger in jedem Match:",
-  "state_corrupted": "⚠️ Turnierstatus veraltet. Bitte neues Spiel starten: /newgame"
+  "state_corrupted": "⚠️ Turnierstatus veraltet. Bitte neues Spiel starten: /newgame",
+  "new_game_hint": "Neues Spiel: /newgame"
 }
