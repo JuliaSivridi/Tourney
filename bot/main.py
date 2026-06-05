@@ -127,6 +127,29 @@ async def _sync_inline(app: web.Application, uid: int, gs, state: dict, lang: st
         logging.debug("Inline sync skipped: %s", e)
 
 
+async def _create_inline_for_web(app: web.Application, uid: int, state: dict, lang: str, fmt: str):
+    """Send a fresh inline keyboard message when tournament is started via the Mini App.
+    Saves the message_id so that all subsequent _sync_inline calls work normally."""
+    try:
+        from bot.handlers.matches import build_keyboard
+        bot: Bot = app["bot"]
+        kb = build_keyboard(state, uid, lang, show_webapp=True)
+        msg = await bot.send_message(
+            chat_id=uid,
+            text=t(lang, "matches_header"),
+            reply_markup=kb,
+            parse_mode="Markdown",
+        )
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(select(GameState).where(GameState.user_id == uid))
+            gs = res.scalar_one_or_none()
+            if gs:
+                gs.kbd_message_id = msg.message_id
+                await session.commit()
+    except Exception as e:
+        logging.debug("Web-to-inline create skipped: %s", e)
+
+
 async def _sync_inline_finished(app: web.Application, uid: int, gs, state: dict, lang: str):
     """Send tournament results to Telegram when finished via web."""
     if not gs.kbd_message_id:
@@ -302,6 +325,10 @@ async def api_start(request: web.Request) -> web.Response:
         if not gs or not gs.format:
             raise web.HTTPNotFound()
 
+        user_res = await session.execute(select(User).where(User.id == uid))
+        user = user_res.scalar_one_or_none()
+        lang = user.lang if user else "ru"
+
         import bot.bracket_engine as eng
         state = eng.loads(gs.state_json) or {}
         player_names = state.get("players_pending", [])
@@ -317,14 +344,24 @@ async def api_start(request: web.Request) -> web.Response:
 
         gs.state_json = eng.dumps(new_state)
         gs.status = TournamentStatus.ACTIVE.value
+
+        # Capture before commit (SQLAlchemy expires attrs on commit)
+        fmt         = gs.format
+        kbd_msg_id  = gs.kbd_message_id
         await session.commit()
 
     raw_matches = new_state.get("matches", [])
-    enriched = _assign_rounds(raw_matches, gs.format, len(player_names))
+    enriched = _assign_rounds(raw_matches, fmt, len(player_names))
+
+    # Tournament started from the Mini App — send the inline keyboard to Telegram
+    # so the chat history preserves the tournament and syncs on every match result.
+    if not kbd_msg_id:
+        await _create_inline_for_web(request.app, uid, new_state, lang, fmt)
+
     return _json({
         "ok": True,
-        "format": gs.format,
-        "status": gs.status,
+        "format": fmt,
+        "status": TournamentStatus.ACTIVE.value,
         "players": new_state.get("players", []),
         "matches": enriched,
         "last_m": -1,
