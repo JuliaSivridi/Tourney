@@ -1,6 +1,12 @@
 // ── Telegram WebApp init ───────────────────────────────────────
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.ready(); tg.expand(); }
+if (tg) {
+  tg.ready();
+  tg.expand();
+  if (tg.colorScheme === "light") {
+    document.documentElement.classList.add("light-theme");
+  }
+}
 
 const uid = new URLSearchParams(window.location.search).get("uid")
   || tg?.initDataUnsafe?.user?.id
@@ -74,8 +80,12 @@ async function init() {
 
 function route(data) {
   clearInterval(refreshTimer);
-  _lastBracketKey = null;  // reset on route change
-  if (!data.format) { show("screen-format"); return; }
+  _lastBracketKey = null;
+  if (!data.format) {
+    document.getElementById("players-input").value = "";
+    show("screen-format");
+    return;
+  }
   if (data.status === "idle" || data.status === "") { show("screen-players"); return; }
   if (data.status === "active") {
     renderGame(data);
@@ -195,7 +205,7 @@ function renderBracket(data) {
       container.appendChild(makeSection("Проигравшие", buildBracket(losers, last_m, false), "losers-section"));
     }
   } else {
-    container.appendChild(buildBracket(filled, last_m, true));
+    container.appendChild(buildBracket(filled, last_m, false));
   }
 }
 
@@ -457,12 +467,31 @@ function renderResults(data) {
 
   const sorted = sortedPlayers(players);
   const medals = ["🥇","🥈","🥉"];
-  list.innerHTML = sorted.map((p, i) =>
-    `<div class="result-row">
-      <span class="result-place">${medals[i]||"#"+(i+1)}</span>
-      <span class="result-name">${esc(p.name)}</span>
-    </div>`
-  ).join("");
+
+  // Group tied players (same wins and losses)
+  const groups = [];
+  for (const p of sorted) {
+    const wins = (p.played||0) - (p.losses||0);
+    const last = groups[groups.length - 1];
+    if (last) {
+      const lp = last[0];
+      if ((lp.played||0)-(lp.losses||0) === wins && (lp.losses||0) === (p.losses||0)) {
+        last.push(p); continue;
+      }
+    }
+    groups.push([p]);
+  }
+
+  let place = 0;
+  list.innerHTML = groups.map(group => {
+    const icon = medals[place] || `#${place+1}`;
+    const names = group.map(p => esc(p.name)).join(", ");
+    place += group.length;
+    return `<div class="result-row">
+      <span class="result-place">${icon}</span>
+      <span class="result-name">${names}</span>
+    </div>`;
+  }).join("");
 }
 
 // ── Helpers ────────────────────────────────────────────────────

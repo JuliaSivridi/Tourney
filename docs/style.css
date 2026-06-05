@@ -14,6 +14,22 @@
   --rs:      7px;
 }
 
+/* ── Light theme ───────────────────────────────────────── */
+.light-theme,
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:      #f2f2f7;
+    --surface: #ffffff;
+    --surf2:   #e5e5ea;
+    --border:  #c8c8cd;
+    --accent:  #007aff;
+    --green:   #34c759;
+    --red:     #ff3b30;
+    --text:    #1c1c1e;
+    --muted:   #6c6c70;
+  }
+}
+
 html, body {
   min-height: 100%;
   background: var(--bg);

@@ -262,10 +262,10 @@ def sorted_results(state: dict, fmt: str) -> list[list[int]]:
     groups: list[list[int]] = []
     for idx in idxs:
         p = players[idx]
-        wins = p["played"] - p["losses"]
-        if groups and players[groups[-1][0]]["played"] - players[groups[-1][0]]["losses"] == wins \
-                and players[groups[-1][0]]["losses"] == p["losses"] \
-                and len(groups) > 2:  # only group ties after top 2
+        wins   = p["played"] - p["losses"]
+        losses = p["losses"]
+        prev   = players[groups[-1][0]] if groups else None
+        if prev and (prev["played"] - prev["losses"]) == wins and prev["losses"] == losses:
             groups[-1].append(idx)
         else:
             groups.append([idx])
