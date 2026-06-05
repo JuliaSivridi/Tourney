@@ -13,7 +13,10 @@ document.querySelectorAll(".tab").forEach(btn => {
 
 // ── Load data ─────────────────────────────────────────────────
 const params = new URLSearchParams(window.location.search);
-const uid = params.get("uid");
+// uid from URL param (inline keyboard button) or from Telegram user id (menu button)
+const uid = params.get("uid")
+  || window.Telegram?.WebApp?.initDataUnsafe?.user?.id
+  || null;
 
 // State icons matching bot: 0=pending, 1=winner, 2=loser, 3=eliminated
 const STATE_ICON = { 0: "⚪", 1: "🟢", 2: "🔴", 3: "⚫" };
@@ -214,3 +217,8 @@ function getMockData() {
 }
 
 loadData();
+
+// Auto-refresh every 5 seconds if there's a uid
+if (uid) {
+  setInterval(loadData, 5000);
+}
