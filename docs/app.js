@@ -429,10 +429,7 @@ function renderStandings(data) {
   const { players } = data;
   if (!players?.length) return;
 
-  const sorted = [...players].sort((a, b) => {
-    const wa = (a.played||0) - (a.losses||0), wb = (b.played||0) - (b.losses||0);
-    return wb - wa || (a.losses||0) - (b.losses||0);
-  });
+  const sorted = sortedPlayers(players);
 
   const medals = ["🥇", "🥈", "🥉"];
   sorted.forEach((p, i) => {
@@ -445,16 +442,20 @@ function renderStandings(data) {
 
 // ── Results ────────────────────────────────────────────────────
 
+function sortedPlayers(players) {
+  return [...players].sort((a, b) => {
+    const wa = (a.played||0) - (a.losses||0);
+    const wb = (b.played||0) - (b.losses||0);
+    return wb - wa || (a.losses||0) - (b.losses||0);
+  });
+}
+
 function renderResults(data) {
   const list = document.getElementById("results-list");
   const { players } = data;
   if (!players?.length) { list.innerHTML = ""; return; }
 
-  const sorted = [...players].sort((a, b) => {
-    const wa = (a.played||0)-(a.losses||0), wb = (b.played||0)-(b.losses||0);
-    return wb - wa || (a.losses||0)-(b.losses||0);
-  });
-
+  const sorted = sortedPlayers(players);
   const medals = ["🥇","🥈","🥉"];
   list.innerHTML = sorted.map((p, i) =>
     `<div class="result-row">

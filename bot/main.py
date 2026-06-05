@@ -149,26 +149,7 @@ async def _sync_inline_finished(app: web.Application, uid: int, gs, state: dict,
             pass
 
         # Build results text
-        players = state.get("players", [])
-        w_idx, l_idx = eng.get_winner_loser(state)
-        lines = [f"🏆 {t(lang, 'results_title')}"]
-        lines.append(f"🥇 *{players[w_idx]['name']}*")
-        lines.append(f"🥈 *{players[l_idx]['name']}*")
-
-        seen = {w_idx, l_idx}
-        by_played: dict[int, list[str]] = {}
-        for i, p in enumerate(players):
-            if i not in seen:
-                by_played.setdefault(p.get("played", 0), []).append(p["name"])
-
-        place = 3
-        for cnt in sorted(by_played.keys(), reverse=True):
-            icon = "🥉" if place == 3 else f"#{place}"
-            lines.append(icon + " " + ", ".join(f"_{n}_" for n in by_played[cnt]))
-            place += len(by_played[cnt])
-
-        lines.append("")
-        lines.append(t(lang, "new_game_hint"))
+        lines = eng.build_results_lines(state, gs.format, t, lang)
 
         await bot.send_message(
             chat_id=uid,

@@ -223,7 +223,7 @@ def is_finished(state: dict, fmt: str) -> bool:
 
 
 def get_winner_loser(state: dict) -> tuple[int, int]:
-    """Return (winner_player_idx, loser_player_idx) after tournament ends."""
+    """Return (winner_player_idx, loser_player_idx) after SE/DE tournament ends."""
     players = state["players"]
     matches = state["matches"]
     # Find the last decided match
@@ -235,6 +235,62 @@ def get_winner_loser(state: dict) -> tuple[int, int]:
             if p1["state"] == 1:
                 return p1["id"], p0["id"]
     return 0, 1
+
+
+def sorted_results(state: dict, fmt: str) -> list[list[int]]:
+    """
+    Return player indices grouped by rank (ties on same line).
+    Each inner list is a group of players sharing the same place.
+    """
+    players = state["players"]
+    n = len(players)
+
+    if fmt == "round_robin":
+        # Sort by wins desc, then losses asc
+        key = lambda i: (-(players[i]["played"] - players[i]["losses"]), players[i]["losses"])
+        idxs = sorted(range(n), key=key)
+    else:
+        # SE/DE: winner/loser of final match are #1/#2, rest sorted by wins
+        w_idx, l_idx = get_winner_loser(state)
+        others = sorted(
+            [i for i in range(n) if i != w_idx and i != l_idx],
+            key=lambda i: (-(players[i]["played"] - players[i]["losses"]), players[i]["losses"])
+        )
+        idxs = [w_idx, l_idx] + others
+
+    # Group ties (same wins & losses)
+    groups: list[list[int]] = []
+    for idx in idxs:
+        p = players[idx]
+        wins = p["played"] - p["losses"]
+        if groups and players[groups[-1][0]]["played"] - players[groups[-1][0]]["losses"] == wins \
+                and players[groups[-1][0]]["losses"] == p["losses"] \
+                and len(groups) > 2:  # only group ties after top 2
+            groups[-1].append(idx)
+        else:
+            groups.append([idx])
+    return groups
+
+
+# ── Results text ─────────────────────────────────────────────────────────────
+
+def build_results_lines(state: dict, fmt: str, t_func, lang: str) -> list[str]:
+    """Build results text lines for inline message."""
+    players = state["players"]
+    groups = sorted_results(state, fmt)
+    icons = ["🥇", "🥈", "🥉"]
+
+    lines = [f"🏆 {t_func(lang, 'results_title')}"]
+    place = 0
+    for group in groups:
+        icon = icons[place] if place < 3 else f"#{place + 1}"
+        names = ", ".join(f"*{players[i]['name']}*" for i in group)
+        lines.append(f"{icon} {names}")
+        place += len(group)
+
+    lines.append("")
+    lines.append(t_func(lang, "new_game_hint"))
+    return lines
 
 
 # ── Serialise / deserialise ───────────────────────────────────────────────────
