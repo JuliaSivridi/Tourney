@@ -197,8 +197,12 @@ async def _show_results(
         lines.append(icon + " " + ", ".join(f"_{n}_" for n in by_played[cnt]))
         place += len(by_played[cnt])
 
+    # Keep the keyboard message (shows match history) — just update text without buttons
+    kb = build_keyboard(state, gs.user_id, lang)
     try:
-        await message.delete()
+        await message.edit_text(t(lang, "matches_header"), reply_markup=kb)
     except Exception:
         pass
+
+    # Send results as a separate message
     await message.answer("\n".join(lines), parse_mode="Markdown")
