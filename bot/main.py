@@ -49,9 +49,14 @@ async def api_game(request: web.Request) -> web.Response:
 
 async def start_webapp() -> web.AppRunner:
     miniapp_dir = Path(__file__).parent.parent / "docs"
+
+    async def index(request: web.Request) -> web.Response:
+        return web.FileResponse(miniapp_dir / "index.html")
+
     app = web.Application()
     app.router.add_get("/api/game/{uid}", api_game)
-    app.router.add_static("/", miniapp_dir, show_index=True)
+    app.router.add_get("/", index)
+    app.router.add_static("/", miniapp_dir, show_index=False)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", WEBAPP_PORT)
