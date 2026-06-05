@@ -227,6 +227,8 @@ function renderBracket(data) {
   if (format === "double_elim") {
     const winners = filled.filter(m => m.section !== "losers");
     const losers  = filled.filter(m => m.section === "losers");
+    console.log("[DE] filled:", filled.length, "winners:", winners.length, "losers:", losers.length,
+      "sections:", [...new Set(filled.map(m => m.section))]);
     if (winners.length) {
       container.appendChild(makeSection("Победители", buildBracket(winners, last_m, false, maxWR, false, true), "winners-section"));
     }

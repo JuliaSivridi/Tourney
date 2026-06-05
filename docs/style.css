@@ -175,18 +175,37 @@ textarea::placeholder { color: var(--muted); }
   border-radius: var(--r);
   padding: 12px 12px 8px;
   margin-bottom: 10px;
-  overflow-x: auto;
 }
 .winners-section {
-  background: rgba(48, 209, 88, 0.07);
-  border: 1px solid rgba(48, 209, 88, 0.2);
+  background: rgba(48, 209, 88, 0.12);
+  border: 1px solid rgba(48, 209, 88, 0.35);
 }
 .winners-section .section-title { color: var(--green); }
 .losers-section {
-  background: rgba(255, 69, 58, 0.07);
-  border: 1px solid rgba(255, 69, 58, 0.18);
+  background: rgba(255, 69, 58, 0.10);
+  border: 1px solid rgba(255, 69, 58, 0.32);
 }
 .losers-section .section-title { color: var(--red); }
+
+/* Stronger tint in light theme where low opacity disappears on white */
+html.light-theme .winners-section {
+  background: rgba(48, 209, 88, 0.15);
+  border-color: rgba(48, 209, 88, 0.45);
+}
+html.light-theme .losers-section {
+  background: rgba(255, 69, 58, 0.13);
+  border-color: rgba(255, 69, 58, 0.40);
+}
+@media (prefers-color-scheme: light) {
+  :root:not(.dark-theme) .winners-section {
+    background: rgba(48, 209, 88, 0.15);
+    border-color: rgba(48, 209, 88, 0.45);
+  }
+  :root:not(.dark-theme) .losers-section {
+    background: rgba(255, 69, 58, 0.13);
+    border-color: rgba(255, 69, 58, 0.40);
+  }
+}
 .section-label {
   font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.5px;
