@@ -43,6 +43,7 @@ async def api_game(request: web.Request) -> web.Response:
     return web.Response(
         text=json.dumps(data, ensure_ascii=False),
         content_type="application/json",
+        headers={"Access-Control-Allow-Origin": "*"},
     )
 
 

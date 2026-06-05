@@ -157,7 +157,32 @@ h1 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
 #standings-table tr:last-child td { border-bottom: none; }
 .place-medal { font-size: 16px; }
 
-/* ── Loading ── */
+/* ── Matches grid ── */
+.matches-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+}
+.matches-grid .match-card {
+  min-width: 160px;
+  flex: 1 1 160px;
+  max-width: 240px;
+  margin: 0;
+}
+
+/* ── State icon in match card ── */
+.state-icon { font-size: 13px; flex-shrink: 0; }
+
+/* ── Eliminated player ── */
+.match-player.eliminated {
+  background: rgba(120, 120, 128, 0.1);
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+/* ── Loading / empty ── */
+.loading,
 #loading {
   display: flex;
   align-items: center;
