@@ -323,6 +323,7 @@ async def api_start(request: web.Request) -> web.Response:
     enriched = _assign_rounds(raw_matches, gs.format, len(player_names))
     return _json({
         "ok": True,
+        "format": gs.format,
         "status": gs.status,
         "players": new_state.get("players", []),
         "matches": enriched,
@@ -381,6 +382,7 @@ async def api_match(request: web.Request) -> web.Response:
 
     return _json({
         "ok": True,
+        "format": gs.format,
         "finished": finished,
         "status": gs.status,
         "players": state.get("players", []),
@@ -426,6 +428,7 @@ async def api_undo(request: web.Request) -> web.Response:
 
     return _json({
         "ok": True,
+        "format": gs.format,
         "players": state.get("players", []),
         "matches": enriched,
         "last_m": state.get("last_m", -1),

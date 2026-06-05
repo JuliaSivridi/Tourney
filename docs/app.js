@@ -227,8 +227,6 @@ function renderBracket(data) {
   if (format === "double_elim") {
     const winners = filled.filter(m => m.section !== "losers");
     const losers  = filled.filter(m => m.section === "losers");
-    console.log("[DE] filled:", filled.length, "winners:", winners.length, "losers:", losers.length,
-      "sections:", [...new Set(filled.map(m => m.section))]);
     if (winners.length) {
       container.appendChild(makeSection("Победители", buildBracket(winners, last_m, false, maxWR, false, true), "winners-section"));
     }
@@ -353,7 +351,16 @@ function buildBracket(matches, last_m, drawConnectors, maxRound, isLosers, isDE)
   });
 
   wrap.appendChild(area);
-  return wrap;
+
+  // Explicit width so the block expands to fit the bracket columns
+  wrap.style.width = totalW + "px";
+
+  // Scroll wrapper — clips overflow and provides horizontal scroll
+  // (overflow-x: auto on the section itself doesn't reliably clip absolute children)
+  const scrollWrap = document.createElement("div");
+  scrollWrap.className = "bracket-scroll";
+  scrollWrap.appendChild(wrap);
+  return scrollWrap;
 }
 
 function line(x, y, w, h) {
@@ -442,6 +449,12 @@ function renderRR(container, matches, last_m) {
 async function pickWinner(m_idx, winner_slot) {
   try {
     const data = await POST(gameUrl("/match"), { m_idx, winner_slot });
+    console.log("[pickWinner] ok:", data.ok, "finished:", data.finished,
+      "has_matches:", !!data.matches, "last_m:", data.last_m, "error:", data.error);
+    if (!data.ok || !data.matches) {
+      console.warn("[pickWinner] skipping render, server response:", JSON.stringify(data));
+      return;
+    }
     if (data.finished) {
       clearInterval(refreshTimer);
       setTimeout(async () => {

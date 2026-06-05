@@ -212,10 +212,16 @@ html.light-theme .losers-section {
   color: var(--muted); padding: 10px 0 4px;
 }
 
+/* ── Bracket scroll wrapper (sits inside section or container) ─ */
+.bracket-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;   /* room for scrollbar on desktop */
+}
+
 /* ── Horizontal bracket ─────────────────────────────────── */
 .bracket-wrap {
-  display: inline-block;
-  min-width: 100%;
+  display: block;
   padding-bottom: 8px;
 }
 
