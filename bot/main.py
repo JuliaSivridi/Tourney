@@ -137,15 +137,13 @@ async def _sync_inline_finished(app: web.Application, uid: int, gs, state: dict,
         import bot.bracket_engine as eng
         bot: Bot = app["bot"]
 
-        # Edit keyboard message — remove webapp button, show match history
+        # Edit keyboard message — remove webapp button, preserve current text
         kb = build_keyboard(state, uid, lang, show_webapp=False)
         try:
-            await bot.edit_message_text(
+            await bot.edit_message_reply_markup(
                 chat_id=uid,
                 message_id=gs.kbd_message_id,
-                text=t(lang, "matches_header"),
                 reply_markup=kb,
-                parse_mode="Markdown",
             )
         except Exception:
             pass

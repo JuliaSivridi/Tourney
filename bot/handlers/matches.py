@@ -192,10 +192,10 @@ async def _show_results(
         lines.append(icon + " " + ", ".join(f"_{n}_" for n in by_played[cnt]))
         place += len(by_played[cnt])
 
-    # Keep the keyboard message (shows match history) — remove webapp button, keep match rows
+    # Keep the keyboard message — remove webapp button, preserve current text
     kb = build_keyboard(state, gs.user_id, lang, show_webapp=False)
     try:
-        await message.edit_text(t(lang, "matches_header"), reply_markup=kb)
+        await message.edit_reply_markup(reply_markup=kb)
     except Exception:
         pass
 
