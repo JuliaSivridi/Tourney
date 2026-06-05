@@ -189,12 +189,10 @@ function renderBracket(data) {
     const winners = filled.filter(m => m.section !== "losers");
     const losers  = filled.filter(m => m.section === "losers");
     if (winners.length) {
-      container.appendChild(makeLabel("Победители"));
-      container.appendChild(buildBracket(winners, last_m, false));
+      container.appendChild(makeSection("Победители", buildBracket(winners, last_m, false), "winners-section"));
     }
     if (losers.length) {
-      container.appendChild(makeLabel("Проигравшие"));
-      container.appendChild(buildBracket(losers, last_m, false));
+      container.appendChild(makeSection("Проигравшие", buildBracket(losers, last_m, false), "losers-section"));
     }
   } else {
     container.appendChild(buildBracket(filled, last_m, true));
@@ -206,6 +204,14 @@ function makeLabel(text) {
   el.className = "section-title";
   el.textContent = text;
   return el;
+}
+
+function makeSection(label, bracketEl, cls) {
+  const section = document.createElement("div");
+  section.className = `bracket-section ${cls}`;
+  section.appendChild(makeLabel(label));
+  section.appendChild(bracketEl);
+  return section;
 }
 
 // ── Horizontal bracket ─────────────────────────────────────────

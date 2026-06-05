@@ -1,15 +1,15 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #1c1c1e;
-  --surface: #2c2c2e;
-  --surf2:   #3a3a3c;
-  --border:  #48484a;
+  --bg:      #242424;
+  --surface: #2e2e2e;
+  --surf2:   #3a3a3a;
+  --border:  #4d4d4d;
   --accent:  #0a84ff;
   --green:   #30d158;
   --red:     #ff453a;
-  --text:    #f2f2f7;
-  --muted:   #8e8e93;
+  --text:    #efefef;
+  --muted:   #909090;
   --r:       10px;
   --rs:      7px;
 }
@@ -140,9 +140,26 @@ textarea::placeholder { color: var(--muted); }
 .section-title {
   font-size: 12px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.6px;
-  color: var(--muted);
-  padding: 16px 0 6px;
+  padding: 0 0 8px;
 }
+
+/* DE bracket sections */
+.bracket-section {
+  border-radius: var(--r);
+  padding: 12px 12px 8px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+}
+.winners-section {
+  background: rgba(48, 209, 88, 0.07);
+  border: 1px solid rgba(48, 209, 88, 0.2);
+}
+.winners-section .section-title { color: var(--green); }
+.losers-section {
+  background: rgba(255, 69, 58, 0.07);
+  border: 1px solid rgba(255, 69, 58, 0.18);
+}
+.losers-section .section-title { color: var(--red); }
 .section-label {
   font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.5px;
