@@ -198,25 +198,39 @@ textarea::placeholder { color: var(--muted); }
 
 .match-player {
   display: flex; align-items: center;
-  padding: 10px 10px; gap: 8px;
+  padding: 0 10px; gap: 8px;
   border-bottom: 1px solid var(--border);
-  min-height: 38px;
+  height: 40px;           /* fixed — all rows same height */
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .match-player:last-child { border-bottom: none; }
 .match-player.clickable { cursor: pointer; }
 .match-player.clickable:active { background: var(--surf2); }
 .match-player.winner { background: rgba(48,209,88,0.13); }
 .match-player.loser  { background: rgba(255,69,58,0.08); color: var(--muted); }
-.match-player.elim   { background: rgba(99,99,102,0.1); color: var(--muted); text-decoration: line-through; }
+.match-player.elim   { background: rgba(99,99,102,0.1);  color: var(--muted); }
 
 .slot-icon { font-size: 13px; flex-shrink: 0; }
-.slot-name { flex: 1; font-weight: 500; font-size: 13px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot-name {
+  flex: 1; font-weight: 500; font-size: 13px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* elim: show name dimmed + strikethrough via pseudo so layout stays stable */
+.match-player.elim .slot-name { text-decoration: line-through; }
 
 .undo-btn {
-  background: none; border: none; color: var(--muted);
-  font-size: 15px; cursor: pointer;
-  padding: 2px 4px; border-radius: 4px; flex-shrink: 0;
+  background: none; border: none;
+  color: var(--accent);       /* accent colour — more visible */
+  font-size: 20px;            /* bigger on mobile */
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+  /* large tap target without affecting row height */
+  min-width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; flex-shrink: 0;
 }
 .undo-btn:active { background: var(--surf2); }
 

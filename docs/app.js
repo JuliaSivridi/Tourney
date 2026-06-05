@@ -48,7 +48,7 @@ const FMT_LABEL = {
 // ── Bracket layout constants ───────────────────────────────────
 const COL_W   = 170; // match card column width
 const CONN_W  =  32; // connector width between rounds
-const CARD_H  =  80; // estimated match card height
+const CARD_H  =  82; // 2 rows × 40px + 1px border + 1px border-radius gap
 const SLOT_PAD = 10; // extra padding above/below card in slot
 
 // ── Load & route ───────────────────────────────────────────────
@@ -351,7 +351,7 @@ function makeMatchCard(match, last_m) {
       const undo = document.createElement("button");
       undo.className = "undo-btn";
       undo.title = "Отменить результат";
-      undo.textContent = "↩";
+      undo.textContent = "↺";
       undo.addEventListener("click", e => {
         e.stopPropagation();
         undoMatch(match.origIdx ?? match.idx);
