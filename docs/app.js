@@ -169,8 +169,9 @@ function renderBracket(data) {
     return;
   }
 
+  // Include bye matches (one slot may be empty — waiting for opponent)
   const filled = matches.map((m, i) => ({ ...m, origIdx: i }))
-    .filter(m => isSlot(m.p?.[0]) && isSlot(m.p?.[1]));
+    .filter(m => isSlot(m.p?.[0]) || isSlot(m.p?.[1]));
 
   if (!filled.length) {
     container.innerHTML = `<div class="empty">Ожидание участников...</div>`;
@@ -188,17 +189,15 @@ function renderBracket(data) {
     const winners = filled.filter(m => m.section !== "losers");
     const losers  = filled.filter(m => m.section === "losers");
     if (winners.length) {
-      const lbl = makeLabel("Победители");
-      container.appendChild(lbl);
-      container.appendChild(buildBracket(winners, last_m));
+      container.appendChild(makeLabel("Победители"));
+      container.appendChild(buildBracket(winners, last_m, false));
     }
     if (losers.length) {
-      const lbl = makeLabel("Проигравшие");
-      container.appendChild(lbl);
-      container.appendChild(buildBracket(losers, last_m));
+      container.appendChild(makeLabel("Проигравшие"));
+      container.appendChild(buildBracket(losers, last_m, false));
     }
   } else {
-    container.appendChild(buildBracket(filled, last_m));
+    container.appendChild(buildBracket(filled, last_m, true));
   }
 }
 
@@ -209,10 +208,15 @@ function makeLabel(text) {
   return el;
 }
 
-// ── Horizontal bracket with connector lines ────────────────────
+// ── Horizontal bracket ─────────────────────────────────────────
+// drawConnectors=true  → SE: lines appear only when both pair matches decided
+// drawConnectors=false → DE: no lines (arbitrary order makes them misleading)
 
-function buildBracket(matches, last_m) {
-  // Group by round
+function matchDecided(m) {
+  return isSlot(m.p[0]) && isSlot(m.p[1]) && m.p[0].state !== 0 && m.p[1].state !== 0;
+}
+
+function buildBracket(matches, last_m, drawConnectors) {
   const byRound = {};
   matches.forEach(m => {
     const r = m.round || 1;
@@ -222,26 +226,23 @@ function buildBracket(matches, last_m) {
   const nRounds = rounds.length;
 
   const r1Count = byRound[rounds[0]].length;
-  const slotH1 = CARD_H + SLOT_PAD * 2;       // slot height in round 1
-  const totalH = r1Count * slotH1;
+  const slotH1  = CARD_H + SLOT_PAD * 2;
+  const totalH  = r1Count * slotH1;
+  const totalW  = nRounds * COL_W + (nRounds - 1) * CONN_W;
 
-  const totalW = nRounds * COL_W + (nRounds - 1) * CONN_W;
-
-  // Outer wrapper: handles horizontal scroll on the page level
   const wrap = document.createElement("div");
   wrap.className = "bracket-wrap";
 
-  // Labels row
+  // ── Round labels ───────────────────────────────────────────
   const labelsRow = document.createElement("div");
   labelsRow.className = "bracket-labels-row";
   labelsRow.style.width = totalW + "px";
-
   rounds.forEach((r, ri) => {
     const lbl = document.createElement("div");
     lbl.className = "round-label";
     lbl.style.width = COL_W + "px";
     lbl.style.marginRight = ri < nRounds - 1 ? CONN_W + "px" : "0";
-    const isLast = ri === nRounds - 1;
+    const isLast    = ri === nRounds - 1;
     const isPreLast = ri === nRounds - 2;
     lbl.textContent = isLast ? "Финал"
       : (isPreLast && nRounds > 2) ? "Полуфинал"
@@ -250,7 +251,7 @@ function buildBracket(matches, last_m) {
   });
   wrap.appendChild(labelsRow);
 
-  // Bracket area (absolutely positioned)
+  // ── Bracket area ───────────────────────────────────────────
   const area = document.createElement("div");
   area.className = "bracket-area";
   area.style.height = totalH + "px";
@@ -258,53 +259,54 @@ function buildBracket(matches, last_m) {
 
   rounds.forEach((r, ri) => {
     const roundMatches = byRound[r];
-    const count = roundMatches.length;
-    const slotH = totalH / count;
-    const x = ri * (COL_W + CONN_W);
+    const count  = roundMatches.length;
+    const slotH  = totalH / count;
+    const x      = ri * (COL_W + CONN_W);
 
+    // Place cards
     roundMatches.forEach((m, mi) => {
       const centerY = slotH * mi + slotH / 2;
       const cardTop = Math.round(centerY - CARD_H / 2);
+      const cardWrap = document.createElement("div");
+      cardWrap.style.cssText = `position:absolute;left:${x}px;top:${cardTop}px;width:${COL_W}px;`;
+      cardWrap.appendChild(makeMatchCard(m, last_m));
+      area.appendChild(cardWrap);
+    });
 
-      const wrap = document.createElement("div");
-      wrap.style.cssText = `position:absolute;left:${x}px;top:${cardTop}px;width:${COL_W}px;`;
-      wrap.appendChild(makeMatchCard(m, last_m));
-      area.appendChild(wrap);
+    // Draw connectors (SE only, pair-complete logic)
+    if (drawConnectors && ri < nRounds - 1) {
+      const nextCount = byRound[rounds[ri + 1]].length;
+      const armX = x + COL_W;
+      const midX = armX + CONN_W / 2;
 
-      // Connectors to next round
-      if (ri < nRounds - 1) {
-        const nextCount = byRound[rounds[ri + 1]].length;
-        const armX = x + COL_W;
-        const midX = armX + CONN_W / 2;
+      for (let pi = 0; pi < count; pi += 2) {
+        const m0 = roundMatches[pi];
+        const m1 = pi + 1 < count ? roundMatches[pi + 1] : null;
+        const parentIdx = Math.floor(pi / 2);
+        if (parentIdx >= nextCount) continue;
 
-        // Draw arm from this card only if there's a "parent" match in the next round
-        // (pairs feed into one next match; odd last match feeds forward alone)
-        const hasPair = mi % 2 === 0 && mi + 1 < count;
-        const isOddLast = mi % 2 === 0 && mi + 1 >= count; // single last match, no pair
-        const parentIdx = Math.floor(mi / 2);
+        const nextSlotH  = totalH / nextCount;
+        const nextCenterY = nextSlotH * parentIdx + nextSlotH / 2;
+        const c0Y = slotH * pi + slotH / 2;
 
-        if (parentIdx < nextCount) {
-          const nextSlotH = totalH / nextCount;
-          const nextCenterY = nextSlotH * parentIdx + nextSlotH / 2;
-
-          // Horizontal arm from this card to midpoint
-          area.appendChild(line(armX, centerY, CONN_W / 2, 2));
-
-          if (isOddLast) {
-            // No pair — draw horizontal arm all the way to next round directly
-            area.appendChild(line(midX, centerY, CONN_W / 2, 2));
-          } else {
-            // Vertical bar connecting pair (only on even index)
-            if (hasPair) {
-              const pairCenterY = slotH * (mi + 1) + slotH / 2;
-              area.appendChild(line(midX - 1, centerY, 2, pairCenterY - centerY));
-            }
-            // Horizontal arm from midpoint to next round
+        if (!m1) {
+          // Bye / odd solo match — draw connector when it's decided
+          if (matchDecided(m0)) {
+            area.appendChild(line(armX, c0Y, CONN_W / 2, 2));
             area.appendChild(line(midX, nextCenterY, CONN_W / 2, 2));
+          }
+        } else {
+          // Pair — draw full connector only when BOTH decided
+          if (matchDecided(m0) && matchDecided(m1)) {
+            const c1Y = slotH * (pi + 1) + slotH / 2;
+            area.appendChild(line(armX, c0Y, CONN_W / 2, 2));        // arm from m0
+            area.appendChild(line(armX, c1Y, CONN_W / 2, 2));        // arm from m1
+            area.appendChild(line(midX - 1, c0Y, 2, c1Y - c0Y));    // vertical bar
+            area.appendChild(line(midX, nextCenterY, CONN_W / 2, 2)); // arm to next
           }
         }
       }
-    });
+    }
   });
 
   wrap.appendChild(area);
@@ -334,8 +336,15 @@ function makeMatchCard(match, last_m) {
   card.appendChild(num);
 
   match.p.forEach((slot, si) => {
-    if (!isSlot(slot)) return;
     const row = document.createElement("div");
+    if (!isSlot(slot)) {
+      // Bye slot — waiting for opponent to be determined
+      row.className = "match-player";
+      row.innerHTML = `<span class="slot-icon" style="opacity:.3">⚪</span>
+                       <span class="slot-name" style="color:var(--muted);font-style:italic">ожидание</span>`;
+      card.appendChild(row);
+      return;
+    }
     row.className = `match-player ${CLASS[slot.state] || ""}`;
     if (!decided) row.classList.add("clickable");
 
