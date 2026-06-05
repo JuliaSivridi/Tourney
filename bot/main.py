@@ -355,6 +355,9 @@ async def api_match(request: web.Request) -> web.Response:
 
         import bot.bracket_engine as eng
         state = eng.loads(gs.state_json)
+        match = state.get("matches", [])[m_idx] if m_idx < len(state.get("matches", [])) else None
+        if not match or not eng._is_slot(match["p"][0]) or not eng._is_slot(match["p"][1]):
+            return _json({"ok": False, "error": "match not ready"})
         state = eng.apply_result(state, m_idx, winner_slot, gs.format)
         gs.state_json = eng.dumps(state)
 

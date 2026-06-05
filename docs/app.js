@@ -81,11 +81,7 @@ async function init() {
 function route(data) {
   clearInterval(refreshTimer);
   _lastBracketKey = null;
-  if (!data.format) {
-    document.getElementById("players-input").value = "";
-    show("screen-format");
-    return;
-  }
+  if (!data.format) { resetToFormat(); return; }
   if (data.status === "idle" || data.status === "") { show("screen-players"); return; }
   if (data.status === "active") {
     renderGame(data);
@@ -114,7 +110,7 @@ document.querySelectorAll(".format-btn").forEach(btn => {
 // ── Players screen ─────────────────────────────────────────────
 document.getElementById("back-from-players").addEventListener("click", async () => {
   try { await POST(gameUrl("/new")); } catch {}
-  show("screen-format");
+  resetToFormat();
 });
 
 document.getElementById("btn-shuffle").addEventListener("click", () => {
@@ -146,16 +142,22 @@ function getPlayerLines() {
 }
 
 // ── Game screen ────────────────────────────────────────────────
+function resetToFormat() {
+  document.getElementById("players-input").value = "";
+  _lastBracketKey = null;
+  show("screen-format");
+}
+
 document.getElementById("btn-new-game").addEventListener("click", async () => {
   if (!confirm("Начать новый турнир?")) return;
   clearInterval(refreshTimer);
   try { await POST(gameUrl("/new")); } catch {}
-  show("screen-format");
+  resetToFormat();
 });
 
 document.getElementById("btn-new-after-results").addEventListener("click", async () => {
   try { await POST(gameUrl("/new")); } catch {}
-  show("screen-format");
+  resetToFormat();
 });
 
 function renderGame(data) {
@@ -344,7 +346,8 @@ function makeMatchCard(match, last_m) {
   const card = document.createElement("div");
   card.className = "match-card";
 
-  const decided = match.p[0].state !== 0 && match.p[1].state !== 0;
+  const bothPresent = isSlot(match.p[0]) && isSlot(match.p[1]);
+  const decided = bothPresent && match.p[0].state !== 0 && match.p[1].state !== 0;
 
   const num = document.createElement("div");
   num.className = "match-num";
@@ -362,12 +365,12 @@ function makeMatchCard(match, last_m) {
       return;
     }
     row.className = `match-player ${CLASS[slot.state] || ""}`;
-    if (!decided) row.classList.add("clickable");
+    if (!decided && bothPresent) row.classList.add("clickable");
 
     row.innerHTML = `<span class="slot-icon">${ICON[slot.state] ?? "⚪"}</span>
                      <span class="slot-name">${esc(slot.name)}</span>`;
 
-    if (!decided) {
+    if (!decided && bothPresent) {
       row.addEventListener("click", () => pickWinner(match.origIdx ?? match.idx, si));
     }
 
