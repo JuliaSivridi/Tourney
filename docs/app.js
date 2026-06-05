@@ -527,7 +527,7 @@ function renderResults(data) {
   list.innerHTML = groups.map(group => {
     const icon = medals[place] || `#${place+1}`;
     const names = group.map(p => esc(p.name)).join(", ");
-    place += group.length;
+    place += 1;   // dense ranking: next group is always +1, regardless of tie size
     return `<div class="result-row">
       <span class="result-place">${icon}</span>
       <span class="result-name">${names}</span>

@@ -286,7 +286,7 @@ def build_results_lines(state: dict, fmt: str, t_func, lang: str) -> list[str]:
         icon = icons[place] if place < 3 else f"#{place + 1}"
         names = ", ".join(f"*{players[i]['name']}*" for i in group)
         lines.append(f"{icon} {names}")
-        place += len(group)
+        place += 1  # dense ranking: next group is always +1, regardless of tie size
 
     lines.append("")
     lines.append(t_func(lang, "new_game_hint"))
