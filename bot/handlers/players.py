@@ -23,7 +23,7 @@ async def _edit_players_msg(bot, chat_id: int, msg_id: int, lang: str, players: 
             chat_id=chat_id,
             message_id=msg_id,
             text=players_text(lang, players),
-            reply_markup=players_keyboard(lang, has_players=bool(players)),
+            reply_markup=players_keyboard(lang, n_players=len(players)),
             parse_mode="Markdown",
         )
     except Exception as e:
@@ -129,7 +129,6 @@ async def cb_start(cb: CallbackQuery, session: AsyncSession, state: FSMContext):
     players = game_state.get("players", [])
 
     if len(players) < 2:
-        await cb.answer(t(lang, "need_players"), show_alert=True)
         return
 
     names = [p["name"] for p in players]

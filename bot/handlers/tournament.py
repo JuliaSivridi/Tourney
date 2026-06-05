@@ -32,16 +32,13 @@ def format_keyboard(lang: str) -> InlineKeyboardMarkup:
     ])
 
 
-def players_keyboard(lang: str, has_players: bool) -> InlineKeyboardMarkup:
+def players_keyboard(lang: str, n_players: int) -> InlineKeyboardMarkup:
     rows = []
-    if has_players:
+    if n_players >= 2:
         rows.append([InlineKeyboardButton(text=t(lang, "btn_start"),   callback_data="players:start")])
-        rows.append([
-            InlineKeyboardButton(text=t(lang, "btn_shuffle"), callback_data="players:shuffle"),
-            InlineKeyboardButton(text=t(lang, "btn_cancel"),  callback_data="players:cancel"),
-        ])
-    else:
-        rows.append([InlineKeyboardButton(text=t(lang, "btn_cancel"), callback_data="players:cancel")])
+    if n_players >= 1:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_shuffle"), callback_data="players:shuffle")])
+    rows.append(    [InlineKeyboardButton(text=t(lang, "btn_cancel"),  callback_data="players:cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -101,7 +98,7 @@ async def choose_format(cb: CallbackQuery, session: AsyncSession, state: FSMCont
 
     msg = await cb.message.answer(
         players_text(lang, []),
-        reply_markup=players_keyboard(lang, has_players=False),
+        reply_markup=players_keyboard(lang, n_players=0),
         parse_mode="Markdown",
     )
     await state.update_data(players_msg_id=msg.message_id, lang=lang)
