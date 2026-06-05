@@ -32,6 +32,26 @@ def format_keyboard(lang: str) -> InlineKeyboardMarkup:
     ])
 
 
+def players_keyboard(lang: str, has_players: bool) -> InlineKeyboardMarkup:
+    rows = []
+    if has_players:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_start"),   callback_data="players:start")])
+        rows.append([
+            InlineKeyboardButton(text=t(lang, "btn_shuffle"), callback_data="players:shuffle"),
+            InlineKeyboardButton(text=t(lang, "btn_cancel"),  callback_data="players:cancel"),
+        ])
+    else:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_cancel"), callback_data="players:cancel")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def players_text(lang: str, players: list) -> str:
+    if not players:
+        return t(lang, "add_players")
+    player_list = "\n".join(f"{i+1}. {p['name']}" for i, p in enumerate(players))
+    return t(lang, "player_list", count=len(players), list=player_list)
+
+
 async def _get_or_create_state(session: AsyncSession, user_id: int) -> GameState:
     res = await session.execute(select(GameState).where(GameState.user_id == user_id))
     gs = res.scalar_one_or_none()
@@ -48,7 +68,6 @@ async def cmd_newgame(message: Message, session: AsyncSession, state: FSMContext
     user = res.scalar_one_or_none()
     lang = user.lang if user else "en"
 
-    # Reset game state — like PHP's UPDATE … SET kbd_id=0, players='', matches=''
     gs = await _get_or_create_state(session, message.chat.id)
     gs.status     = TournamentStatus.IDLE.value
     gs.format     = ""
@@ -58,6 +77,7 @@ async def cmd_newgame(message: Message, session: AsyncSession, state: FSMContext
     await session.commit()
 
     await state.set_state(TournamentSetup.choosing_format)
+    await state.update_data(players_msg_id=None)
     await message.answer(t(lang, "new_choose_format"), reply_markup=format_keyboard(lang))
 
 
@@ -71,35 +91,17 @@ async def choose_format(cb: CallbackQuery, session: AsyncSession, state: FSMCont
     await cb.message.edit_reply_markup(reply_markup=None)
 
     gs = await _get_or_create_state(session, cb.message.chat.id)
-    gs.format = fmt.value
-    gs.status = TournamentStatus.SETUP.value
+    gs.format     = fmt.value
+    gs.status     = TournamentStatus.SETUP.value
     gs.state_json = "{}"
     await session.commit()
 
     await state.set_state(TournamentSetup.adding_players)
     await cb.answer()
-    await _show_player_list(cb.message, gs, lang)
 
-
-async def _show_player_list(message: Message, gs: GameState, lang: str):
-    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-    import bot.bracket_engine as eng
-
-    state = eng.loads(gs.state_json)
-    players = state.get("players", [])
-
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=t(lang, "btn_start"))],
-            [KeyboardButton(text=t(lang, "btn_shuffle")), KeyboardButton(text=t(lang, "btn_cancel"))],
-        ],
-        resize_keyboard=True,
+    msg = await cb.message.answer(
+        players_text(lang, []),
+        reply_markup=players_keyboard(lang, has_players=False),
+        parse_mode="Markdown",
     )
-
-    if players:
-        player_list = "\n".join(f"{i+1}. {p['name']}" for i, p in enumerate(players))
-        text = t(lang, "player_list", count=len(players), list=player_list)
-    else:
-        text = t(lang, "add_players")
-
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await state.update_data(players_msg_id=msg.message_id, lang=lang)
