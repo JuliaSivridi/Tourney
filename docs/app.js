@@ -341,7 +341,7 @@ function makeMatchCard(match, last_m) {
       // Bye slot — waiting for opponent to be determined
       row.className = "match-player";
       row.innerHTML = `<span class="slot-icon" style="opacity:.3">⚪</span>
-                       <span class="slot-name" style="color:var(--muted);font-style:italic">ожидание</span>`;
+                       <span class="slot-name"></span>`;
       card.appendChild(row);
       return;
     }
