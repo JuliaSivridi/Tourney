@@ -21,7 +21,7 @@ router = Router()
 _STATE_ICON = {0: "⚪", 1: "🟢", 2: "🔴", 3: "⚫"}
 
 
-def build_keyboard(state: dict, user_id: int, lang: str) -> InlineKeyboardMarkup:
+def build_keyboard(state: dict, user_id: int, lang: str, show_webapp: bool = True) -> InlineKeyboardMarkup:
     """
     One row per match — exactly like the PHP version:
       [🟩#01]  [⚪ Alice]  [⚪ Bob]
@@ -67,7 +67,7 @@ def build_keyboard(state: dict, user_id: int, lang: str) -> InlineKeyboardMarkup
             ),
         ])
 
-    if WEBAPP_URL.startswith("https://"):
+    if show_webapp and WEBAPP_URL.startswith("https://"):
         rows.append([InlineKeyboardButton(
             text=t(lang, "btn_bracket"),
             web_app=WebAppInfo(url=f"{WEBAPP_URL}?uid={user_id}"),
@@ -139,6 +139,7 @@ async def handle_match_pick(cb: CallbackQuery, session: AsyncSession):
         await session.commit()
 
         winner_name = state["matches"][m_idx]["p"][winner_slot]["name"]
+        win_text = t(lang, "win_msg", winner=winner_name, match=m_idx)
 
         if eng.is_finished(state, fmt):
             await _show_results(cb.message, session, gs, state, lang)
@@ -146,15 +147,9 @@ async def handle_match_pick(cb: CallbackQuery, session: AsyncSession):
 
         kb = build_keyboard(state, gs.user_id, lang)
         try:
-            await cb.message.edit_text(
-                t(lang, "win_msg", winner=winner_name, match=m_idx),
-                reply_markup=kb,
-            )
+            await cb.message.edit_text(win_text, reply_markup=kb)
         except Exception:
-            msg = await cb.message.answer(
-                t(lang, "win_msg", winner=winner_name, match=m_idx),
-                reply_markup=kb,
-            )
+            msg = await cb.message.answer(win_text, reply_markup=kb)
             gs.kbd_message_id = msg.message_id
             await session.commit()
 
@@ -197,8 +192,8 @@ async def _show_results(
         lines.append(icon + " " + ", ".join(f"_{n}_" for n in by_played[cnt]))
         place += len(by_played[cnt])
 
-    # Keep the keyboard message (shows match history) — just update text without buttons
-    kb = build_keyboard(state, gs.user_id, lang)
+    # Keep the keyboard message (shows match history) — remove webapp button, keep match rows
+    kb = build_keyboard(state, gs.user_id, lang, show_webapp=False)
     try:
         await message.edit_text(t(lang, "matches_header"), reply_markup=kb)
     except Exception:

@@ -53,6 +53,13 @@ const SLOT_PAD = 10; // extra padding above/below card in slot
 
 // ── Load & route ───────────────────────────────────────────────
 let refreshTimer = null;
+let _lastBracketKey = null;
+
+function _bracketKey(data) {
+  // Only re-render bracket when match states or last_m actually change
+  return (data.last_m ?? -1) + "|" +
+    (data.matches || []).map(m => (m.p?.[0]?.state ?? "-") + (m.p?.[1]?.state ?? "-")).join(",");
+}
 
 async function init() {
   if (!uid) { show("screen-format"); return; }
@@ -67,6 +74,7 @@ async function init() {
 
 function route(data) {
   clearInterval(refreshTimer);
+  _lastBracketKey = null;  // reset on route change
   if (!data.format) { show("screen-format"); return; }
   if (data.status === "idle" || data.status === "") { show("screen-players"); return; }
   if (data.status === "active") {
@@ -142,7 +150,11 @@ document.getElementById("btn-new-after-results").addEventListener("click", async
 
 function renderGame(data) {
   document.getElementById("game-format-label").textContent = FMT_LABEL[data.format] || data.format;
-  renderBracket(data);
+  const key = _bracketKey(data);
+  if (key !== _lastBracketKey) {
+    _lastBracketKey = key;
+    renderBracket(data);
+  }
   renderStandings(data);
 }
 
@@ -261,23 +273,36 @@ function buildBracket(matches, last_m) {
 
       // Connectors to next round
       if (ri < nRounds - 1) {
-        const nextSlotH = totalH / (count / 2);
-        const parentIdx = Math.floor(mi / 2);
-        const nextCenterY = nextSlotH * parentIdx + nextSlotH / 2;
+        const nextCount = byRound[rounds[ri + 1]].length;
         const armX = x + COL_W;
         const midX = armX + CONN_W / 2;
 
-        // Horizontal arm from this card to midpoint
-        area.appendChild(line(armX, centerY, CONN_W / 2, 2));
+        // Draw arm from this card only if there's a "parent" match in the next round
+        // (pairs feed into one next match; odd last match feeds forward alone)
+        const hasPair = mi % 2 === 0 && mi + 1 < count;
+        const isOddLast = mi % 2 === 0 && mi + 1 >= count; // single last match, no pair
+        const parentIdx = Math.floor(mi / 2);
 
-        // Vertical bar (only draw once per pair, on even index)
-        if (mi % 2 === 0 && mi + 1 < count) {
-          const pairCenterY = slotH * (mi + 1) + slotH / 2;
-          area.appendChild(line(midX - 1, centerY, 2, pairCenterY - centerY));
+        if (parentIdx < nextCount) {
+          const nextSlotH = totalH / nextCount;
+          const nextCenterY = nextSlotH * parentIdx + nextSlotH / 2;
+
+          // Horizontal arm from this card to midpoint
+          area.appendChild(line(armX, centerY, CONN_W / 2, 2));
+
+          if (isOddLast) {
+            // No pair — draw horizontal arm all the way to next round directly
+            area.appendChild(line(midX, centerY, CONN_W / 2, 2));
+          } else {
+            // Vertical bar connecting pair (only on even index)
+            if (hasPair) {
+              const pairCenterY = slotH * (mi + 1) + slotH / 2;
+              area.appendChild(line(midX - 1, centerY, 2, pairCenterY - centerY));
+            }
+            // Horizontal arm from midpoint to next round
+            area.appendChild(line(midX, nextCenterY, CONN_W / 2, 2));
+          }
         }
-
-        // Horizontal arm from midpoint to next round
-        area.appendChild(line(midX, nextCenterY, CONN_W / 2, 2));
       }
     });
   });

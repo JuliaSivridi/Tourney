@@ -16,6 +16,7 @@ from bot.db.engine import init_db, AsyncSessionLocal
 from bot.db.models import GameState, User, TournamentStatus
 from bot.middleware import DbSessionMiddleware
 from bot.handlers import start, tournament, players, matches
+from bot.locales.i18n import t
 
 logging.basicConfig(level=logging.INFO)
 
@@ -106,7 +107,7 @@ def _assign_rounds(match_list: list, fmt: str, n_players: int) -> list[dict]:
 
 # ── Inline keyboard sync ──────────────────────────────────────────────────────
 
-async def _sync_inline(app: web.Application, uid: int, gs, state: dict, lang: str):
+async def _sync_inline(app: web.Application, uid: int, gs, state: dict, lang: str, text: str | None = None):
     """Update the inline keyboard message in Telegram after a web action."""
     if not gs.kbd_message_id:
         return
@@ -118,12 +119,63 @@ async def _sync_inline(app: web.Application, uid: int, gs, state: dict, lang: st
         await bot.edit_message_text(
             chat_id=uid,
             message_id=gs.kbd_message_id,
-            text=t(lang, "matches_header"),
+            text=text or t(lang, "matches_header"),
             reply_markup=kb,
             parse_mode="Markdown",
         )
     except Exception as e:
         logging.debug("Inline sync skipped: %s", e)
+
+
+async def _sync_inline_finished(app: web.Application, uid: int, gs, state: dict, lang: str):
+    """Send tournament results to Telegram when finished via web."""
+    if not gs.kbd_message_id:
+        return
+    try:
+        from bot.handlers.matches import build_keyboard
+        from bot.locales.i18n import t
+        import bot.bracket_engine as eng
+        bot: Bot = app["bot"]
+
+        # Edit keyboard message — remove webapp button, show match history
+        kb = build_keyboard(state, uid, lang, show_webapp=False)
+        try:
+            await bot.edit_message_text(
+                chat_id=uid,
+                message_id=gs.kbd_message_id,
+                text=t(lang, "matches_header"),
+                reply_markup=kb,
+                parse_mode="Markdown",
+            )
+        except Exception:
+            pass
+
+        # Build results text
+        players = state.get("players", [])
+        w_idx, l_idx = eng.get_winner_loser(state)
+        lines = [f"🏆 {t(lang, 'results_title')}"]
+        lines.append(f"🥇 *{players[w_idx]['name']}*")
+        lines.append(f"🥈 *{players[l_idx]['name']}*")
+
+        seen = {w_idx, l_idx}
+        by_played: dict[int, list[str]] = {}
+        for i, p in enumerate(players):
+            if i not in seen:
+                by_played.setdefault(p.get("played", 0), []).append(p["name"])
+
+        place = 3
+        for cnt in sorted(by_played.keys(), reverse=True):
+            icon = "🥉" if place == 3 else f"#{place}"
+            lines.append(icon + " " + ", ".join(f"_{n}_" for n in by_played[cnt]))
+            place += len(by_played[cnt])
+
+        await bot.send_message(
+            chat_id=uid,
+            text="\n".join(lines),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logging.debug("Inline finished sync skipped: %s", e)
 
 
 # ── GET /api/game/{uid} ───────────────────────────────────────────────────────
@@ -168,6 +220,9 @@ async def api_new(request: web.Request) -> web.Response:
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(GameState).where(GameState.user_id == uid))
         gs = res.scalar_one_or_none()
+        old_kbd_id = gs.kbd_message_id if gs else 0
+        old_state_json = gs.state_json if gs else "{}"
+
         if not gs:
             gs = GameState(user_id=uid)
             session.add(gs)
@@ -177,6 +232,22 @@ async def api_new(request: web.Request) -> web.Response:
         gs.kbd_message_id = 0
         gs.state_json = "{}"
         await session.commit()
+
+    # Remove webapp button from old keyboard message
+    if old_kbd_id:
+        try:
+            from bot.handlers.matches import build_keyboard
+            import bot.bracket_engine as eng
+            bot_inst: Bot = request.app["bot"]
+            old_state = eng.loads(old_state_json)
+            kb = build_keyboard(old_state, uid, "ru", show_webapp=False)
+            await bot_inst.edit_message_reply_markup(
+                chat_id=uid,
+                message_id=old_kbd_id,
+                reply_markup=kb,
+            )
+        except Exception as e:
+            logging.debug("api_new keyboard cleanup skipped: %s", e)
 
     return _json({"ok": True})
 
@@ -312,7 +383,12 @@ async def api_match(request: web.Request) -> web.Response:
         await session.commit()
 
     # Sync to inline keyboard
-    await _sync_inline(request.app, uid, gs, state, lang)
+    if finished:
+        await _sync_inline_finished(request.app, uid, gs, state, lang)
+    else:
+        winner_name = state["matches"][m_idx]["p"][winner_slot]["name"]
+        win_text = t(lang, "win_msg", winner=winner_name, match=m_idx)
+        await _sync_inline(request.app, uid, gs, state, lang, text=win_text)
 
     raw_matches = state.get("matches", [])
     n_players = len(state.get("players", []))
