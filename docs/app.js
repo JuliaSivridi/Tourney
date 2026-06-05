@@ -172,6 +172,29 @@ function renderGame(data) {
 
 // ── BRACKET RENDERING ──────────────────────────────────────────
 
+function maxRoundOf(arr) {
+  return arr.reduce((m, x) => Math.max(m, x.round || 1), 1);
+}
+
+// Label a round based on its distance from the final round
+function roundLabel(r, maxRound, isLosers, isDE) {
+  if (isLosers) return `Раунд ${r}`;
+  const dist = maxRound - r;
+  if (isDE) {
+    if (dist === 0) return "Суперфинал";
+    if (dist === 1) return "Финал";
+    if (dist === 2 && maxRound >= 3) return "Полуфинал";
+    if (dist === 3 && maxRound >= 4) return "1/4 финала";
+    if (dist === 4 && maxRound >= 5) return "1/8 финала";
+  } else {
+    if (dist === 0) return "Финал";
+    if (dist === 1 && maxRound >= 2) return "Полуфинал";
+    if (dist === 2 && maxRound >= 3) return "1/4 финала";
+    if (dist === 3 && maxRound >= 4) return "1/8 финала";
+  }
+  return `Раунд ${r}`;
+}
+
 function renderBracket(data) {
   const container = document.getElementById("matches-container");
   const { matches, format, last_m } = data;
@@ -180,6 +203,10 @@ function renderBracket(data) {
     container.innerHTML = `<div class="empty">Матчей пока нет</div>`;
     return;
   }
+
+  // Compute total expected rounds from ALL matches (including future unfilled ones)
+  const maxWR = maxRoundOf(matches.filter(m => m.section !== "losers"));
+  const maxLR = maxRoundOf(matches.filter(m => m.section === "losers"));
 
   // Include bye matches (one slot may be empty — waiting for opponent)
   const filled = matches.map((m, i) => ({ ...m, origIdx: i }))
@@ -201,13 +228,13 @@ function renderBracket(data) {
     const winners = filled.filter(m => m.section !== "losers");
     const losers  = filled.filter(m => m.section === "losers");
     if (winners.length) {
-      container.appendChild(makeSection("Победители", buildBracket(winners, last_m, false), "winners-section"));
+      container.appendChild(makeSection("Победители", buildBracket(winners, last_m, false, maxWR, false, true), "winners-section"));
     }
     if (losers.length) {
-      container.appendChild(makeSection("Проигравшие", buildBracket(losers, last_m, false), "losers-section"));
+      container.appendChild(makeSection("Проигравшие", buildBracket(losers, last_m, false, maxLR, true, false), "losers-section"));
     }
   } else {
-    container.appendChild(buildBracket(filled, last_m, false));
+    container.appendChild(buildBracket(filled, last_m, false, maxWR, false, false));
   }
 }
 
@@ -234,7 +261,7 @@ function matchDecided(m) {
   return isSlot(m.p[0]) && isSlot(m.p[1]) && m.p[0].state !== 0 && m.p[1].state !== 0;
 }
 
-function buildBracket(matches, last_m, drawConnectors) {
+function buildBracket(matches, last_m, drawConnectors, maxRound, isLosers, isDE) {
   const byRound = {};
   matches.forEach(m => {
     const r = m.round || 1;
@@ -260,11 +287,7 @@ function buildBracket(matches, last_m, drawConnectors) {
     lbl.className = "round-label";
     lbl.style.width = COL_W + "px";
     lbl.style.marginRight = ri < nRounds - 1 ? CONN_W + "px" : "0";
-    const isLast    = ri === nRounds - 1;
-    const isPreLast = ri === nRounds - 2;
-    lbl.textContent = isLast ? "Финал"
-      : (isPreLast && nRounds > 2) ? "Полуфинал"
-      : `Раунд ${r}`;
+    lbl.textContent = roundLabel(r, maxRound, isLosers, isDE);
     labelsRow.appendChild(lbl);
   });
   wrap.appendChild(labelsRow);
