@@ -205,12 +205,20 @@ async def api_get(request: web.Request) -> web.Response:
 
     enriched = _assign_rounds(raw_matches, gs.format, n_players) if gs.format else raw_matches
 
+    ranking = []
+    if gs.format and state.get("matches"):
+        try:
+            ranking = eng.sorted_results(state, gs.format)
+        except Exception:
+            pass
+
     return _json({
         "status":  gs.status,
         "format":  gs.format,
         "players": state.get("players", []),
         "matches": enriched,
         "last_m":  state.get("last_m", -1),
+        "ranking": ranking,
     })
 
 
@@ -417,10 +425,18 @@ async def api_match(request: web.Request) -> web.Response:
     n_players = len(state.get("players", []))
     enriched = _assign_rounds(raw_matches, gs.format, n_players)
 
+    ranking = []
+    if finished:
+        try:
+            ranking = eng.sorted_results(state, gs.format)
+        except Exception:
+            pass
+
     return _json({
         "ok": True,
         "format": gs.format,
         "finished": finished,
+        "ranking": ranking,
         "status": gs.status,
         "players": state.get("players", []),
         "matches": enriched,

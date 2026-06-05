@@ -199,6 +199,10 @@ function renderBracket(data) {
   const container = document.getElementById("matches-container");
   const { matches, format, last_m } = data;
 
+  // Save horizontal scroll of every bracket-scroll wrapper before rebuild
+  const savedScrolls = [...container.querySelectorAll(".bracket-scroll")]
+    .map(el => el.scrollLeft);
+
   if (!matches?.length) {
     container.innerHTML = `<div class="empty">Матчей пока нет</div>`;
     return;
@@ -236,6 +240,11 @@ function renderBracket(data) {
   } else {
     container.appendChild(buildBracket(filled, last_m, false, maxWR, false, false));
   }
+
+  // Restore scroll positions (same order: winners scroll first, then losers)
+  [...container.querySelectorAll(".bracket-scroll")].forEach((el, i) => {
+    if (savedScrolls[i] != null) el.scrollLeft = savedScrolls[i];
+  });
 }
 
 function makeLabel(text) {
@@ -503,13 +512,33 @@ function sortedPlayers(players) {
 
 function renderResults(data) {
   const list = document.getElementById("results-list");
-  const { players } = data;
+  const { players, ranking } = data;
   if (!players?.length) { list.innerHTML = ""; return; }
 
-  const sorted = sortedPlayers(players);
   const medals = ["🥇","🥈","🥉"];
 
-  // Group tied players (same wins and losses)
+  // Prefer server-computed ranking (authoritative: handles DE grand-final winner correctly).
+  // ranking = [[player_idx, ...], ...]  — groups ordered by place, from sorted_results().
+  // Fall back to client-side sort when ranking is absent (e.g. old API response).
+  const groups = (ranking?.length)
+    ? ranking.map(grp => grp.map(idx => players[idx]))
+    : clientSideGroups(players);
+
+  let place = 0;
+  list.innerHTML = groups.map(group => {
+    const icon = medals[place] || `#${place+1}`;
+    const names = group.map(p => esc(p.name)).join(", ");
+    place += 1;   // dense ranking: +1 per group regardless of tie size
+    return `<div class="result-row">
+      <span class="result-place">${icon}</span>
+      <span class="result-name">${names}</span>
+    </div>`;
+  }).join("");
+}
+
+// Client-side fallback grouping (used only if server didn't return ranking)
+function clientSideGroups(players) {
+  const sorted = sortedPlayers(players);
   const groups = [];
   for (const p of sorted) {
     const wins = (p.played||0) - (p.losses||0);
@@ -522,17 +551,7 @@ function renderResults(data) {
     }
     groups.push([p]);
   }
-
-  let place = 0;
-  list.innerHTML = groups.map(group => {
-    const icon = medals[place] || `#${place+1}`;
-    const names = group.map(p => esc(p.name)).join(", ");
-    place += 1;   // dense ranking: next group is always +1, regardless of tie size
-    return `<div class="result-row">
-      <span class="result-place">${icon}</span>
-      <span class="result-name">${names}</span>
-    </div>`;
-  }).join("");
+  return groups;
 }
 
 // ── Helpers ────────────────────────────────────────────────────
