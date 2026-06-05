@@ -1,36 +1,92 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tournament Bracket</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Турнир</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app">
-    <header>
-      <h1 id="tournament-title">Tournament</h1>
+
+    <!-- ── Экран: Выбор формата ── -->
+    <div id="screen-format" class="screen hidden">
+      <div class="screen-header">
+        <h2>Новый турнир</h2>
+        <p class="hint">Выберите формат</p>
+      </div>
+      <div class="format-list">
+        <button class="format-btn" data-fmt="single_elim">
+          <span class="fmt-icon">🏆</span>
+          <span class="fmt-name">Single Elimination</span>
+          <span class="fmt-desc">Выбыл — значит выбыл</span>
+        </button>
+        <button class="format-btn" data-fmt="double_elim">
+          <span class="fmt-icon">🔁</span>
+          <span class="fmt-name">Double Elimination</span>
+          <span class="fmt-desc">Дают второй шанс</span>
+        </button>
+        <button class="format-btn" data-fmt="round_robin">
+          <span class="fmt-icon">🔄</span>
+          <span class="fmt-name">Round Robin</span>
+          <span class="fmt-desc">Каждый с каждым</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Экран: Участники ── -->
+    <div id="screen-players" class="screen hidden">
+      <div class="screen-header">
+        <button class="back-btn" id="back-from-players">← Назад</button>
+        <h2>Участники</h2>
+        <p class="hint">Введите каждого с новой строки (минимум 2)</p>
+      </div>
+      <textarea id="players-input" placeholder="Алиса&#10;Борис&#10;Катя&#10;Дима" rows="8"></textarea>
+      <div class="btn-row">
+        <button class="btn-secondary" id="btn-shuffle">🔀 Перемешать</button>
+        <button class="btn-primary" id="btn-start">Начать турнир →</button>
+      </div>
+    </div>
+
+    <!-- ── Экран: Турнир (сетка + матчи) ── -->
+    <div id="screen-game" class="screen hidden">
+      <div class="game-header">
+        <span id="game-format-label" class="format-tag"></span>
+        <button class="btn-new-small" id="btn-new-game">Новый турнир</button>
+      </div>
       <div class="tabs">
-        <button class="tab active" data-tab="bracket">Bracket</button>
-        <button class="tab" data-tab="standings">Standings</button>
+        <button class="tab active" data-tab="matches">Матчи</button>
+        <button class="tab" data-tab="standings">Таблица</button>
       </div>
-    </header>
 
-    <div id="bracket-view" class="view active">
-      <div id="bracket-scroll">
-        <div id="bracket-container"></div>
+      <div id="matches-view" class="tab-view active">
+        <div id="matches-container"></div>
+      </div>
+
+      <div id="standings-view" class="tab-view">
+        <table id="standings-table">
+          <thead><tr><th>#</th><th>Игрок</th><th>П</th><th>П</th><th>И</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
 
-    <div id="standings-view" class="view">
-      <table id="standings-table">
-        <thead><tr><th>#</th><th>Player</th><th>W</th><th>L</th><th>Played</th></tr></thead>
-        <tbody></tbody>
-      </table>
+    <!-- ── Экран: Результаты ── -->
+    <div id="screen-results" class="screen hidden">
+      <div class="results-content">
+        <div class="results-title">🏆 Результаты</div>
+        <div id="results-list"></div>
+        <button class="btn-primary" id="btn-new-after-results">Новый турнир</button>
+      </div>
     </div>
+
+    <!-- ── Загрузка ── -->
+    <div id="screen-loading" class="screen">
+      <div class="loading-spinner">⏳</div>
+    </div>
+
   </div>
-
-  <script src="bracket.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
