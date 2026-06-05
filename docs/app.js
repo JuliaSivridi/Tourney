@@ -17,7 +17,8 @@ async function api(method, path, body) {
 const GET  = (p)    => api("GET",  p);
 const POST = (p, b) => api("POST", p, b);
 
-function gameUrl(path = "") { return `/api/game/${uid}${path}`; }
+// Relative URL (no leading slash) so nginx prefix /tourney-api/ is preserved
+function gameUrl(path = "") { return `api/game/${uid}${path}`; }
 
 // ── Screen routing ─────────────────────────────────────────────
 function show(id) {
