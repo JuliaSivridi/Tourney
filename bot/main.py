@@ -1,7 +1,11 @@
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import random
+import time
+import urllib.parse
 from pathlib import Path
 
 from aiohttp import web
@@ -20,7 +24,49 @@ from bot.locales.i18n import t
 
 logging.basicConfig(level=logging.INFO)
 
-CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type"}
+CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type, X-Telegram-Init-Data",
+}
+
+INIT_DATA_MAX_AGE = 24 * 3600  # seconds
+
+
+def _validate_init_data(init_data: str) -> int | None:
+    """Validate Telegram WebApp initData (HMAC per Telegram spec).
+    Returns the authenticated Telegram user id, or None if invalid."""
+    if not init_data:
+        return None
+    try:
+        pairs = urllib.parse.parse_qsl(init_data, keep_blank_values=True)
+        data = dict(pairs)
+        received_hash = data.pop("hash", "")
+        if not received_hash:
+            return None
+        check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+        secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+        calc_hash = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(calc_hash, received_hash):
+            return None
+        auth_date = int(data.get("auth_date", "0"))
+        if time.time() - auth_date > INIT_DATA_MAX_AGE:
+            return None
+        user = json.loads(data.get("user", "{}"))
+        return int(user["id"])
+    except Exception:
+        return None
+
+
+def _require_auth(request: web.Request) -> int:
+    """Authenticate the request via initData and ensure it matches the uid in the URL."""
+    uid_str = request.match_info["uid"]
+    if not uid_str.lstrip("-").isdigit():
+        raise web.HTTPBadRequest(headers=CORS)
+    uid = int(uid_str)
+    auth_uid = _validate_init_data(request.headers.get("X-Telegram-Init-Data", ""))
+    if auth_uid is None or auth_uid != uid:
+        raise web.HTTPForbidden(text="Invalid Telegram initData", headers=CORS)
+    return uid
 
 
 def _json(data) -> web.Response:
@@ -186,10 +232,7 @@ async def _sync_inline_finished(app: web.Application, uid: int, gs, state: dict,
 # ── GET /api/game/{uid} ───────────────────────────────────────────────────────
 
 async def api_get(request: web.Request) -> web.Response:
-    uid_str = request.match_info["uid"]
-    if not uid_str.lstrip("-").isdigit():
-        raise web.HTTPBadRequest()
-    uid = int(uid_str)
+    uid = _require_auth(request)
 
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(GameState).where(GameState.user_id == uid))
@@ -225,10 +268,7 @@ async def api_get(request: web.Request) -> web.Response:
 # ── POST /api/game/{uid}/new ──────────────────────────────────────────────────
 
 async def api_new(request: web.Request) -> web.Response:
-    uid_str = request.match_info["uid"]
-    if not uid_str.lstrip("-").isdigit():
-        raise web.HTTPBadRequest()
-    uid = int(uid_str)
+    uid = _require_auth(request)
 
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(GameState).where(GameState.user_id == uid))
@@ -268,10 +308,7 @@ async def api_new(request: web.Request) -> web.Response:
 # ── POST /api/game/{uid}/format ───────────────────────────────────────────────
 
 async def api_set_format(request: web.Request) -> web.Response:
-    uid_str = request.match_info["uid"]
-    if not uid_str.lstrip("-").isdigit():
-        raise web.HTTPBadRequest()
-    uid = int(uid_str)
+    uid = _require_auth(request)
     body = await request.json()
     fmt = body.get("format", "")
     if fmt not in ("single_elim", "double_elim", "round_robin"):
@@ -293,16 +330,16 @@ async def api_set_format(request: web.Request) -> web.Response:
 # ── POST /api/game/{uid}/players ──────────────────────────────────────────────
 
 async def api_set_players(request: web.Request) -> web.Response:
-    uid_str = request.match_info["uid"]
-    if not uid_str.lstrip("-").isdigit():
-        raise web.HTTPBadRequest()
-    uid = int(uid_str)
+    uid = _require_auth(request)
     body = await request.json()
     player_names = body.get("players", [])
     if not isinstance(player_names, list) or len(player_names) < 2:
         raise web.HTTPBadRequest()
 
-    player_names = [str(n).strip() for n in player_names if str(n).strip()]
+    # Strip quotes and Markdown-breaking characters — same rule as the bot-chat input
+    _name_filter = str.maketrans("", "", "'\"\\`_*[]")
+    player_names = [str(n)[:64].translate(_name_filter).strip() for n in player_names]
+    player_names = [n for n in player_names if n]
 
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(GameState).where(GameState.user_id == uid))
@@ -322,10 +359,7 @@ async def api_set_players(request: web.Request) -> web.Response:
 # ── POST /api/game/{uid}/start ────────────────────────────────────────────────
 
 async def api_start(request: web.Request) -> web.Response:
-    uid_str = request.match_info["uid"]
-    if not uid_str.lstrip("-").isdigit():
-        raise web.HTTPBadRequest()
-    uid = int(uid_str)
+    uid = _require_auth(request)
 
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(GameState).where(GameState.user_id == uid))
@@ -379,15 +413,12 @@ async def api_start(request: web.Request) -> web.Response:
 # ── POST /api/game/{uid}/match ────────────────────────────────────────────────
 
 async def api_match(request: web.Request) -> web.Response:
-    uid_str = request.match_info["uid"]
-    if not uid_str.lstrip("-").isdigit():
-        raise web.HTTPBadRequest()
-    uid = int(uid_str)
+    uid = _require_auth(request)
     body = await request.json()
     m_idx = body.get("m_idx")
     winner_slot = body.get("winner_slot")
-    if m_idx is None or winner_slot not in (0, 1):
-        raise web.HTTPBadRequest()
+    if not isinstance(m_idx, int) or m_idx < 0 or winner_slot not in (0, 1):
+        raise web.HTTPBadRequest(headers=CORS)
 
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(GameState).where(GameState.user_id == uid))
@@ -447,14 +478,11 @@ async def api_match(request: web.Request) -> web.Response:
 # ── POST /api/game/{uid}/undo ─────────────────────────────────────────────────
 
 async def api_undo(request: web.Request) -> web.Response:
-    uid_str = request.match_info["uid"]
-    if not uid_str.lstrip("-").isdigit():
-        raise web.HTTPBadRequest()
-    uid = int(uid_str)
+    uid = _require_auth(request)
     body = await request.json()
     m_idx = body.get("m_idx")
-    if m_idx is None:
-        raise web.HTTPBadRequest()
+    if not isinstance(m_idx, int) or m_idx < 0:
+        raise web.HTTPBadRequest(headers=CORS)
 
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(GameState).where(GameState.user_id == uid))

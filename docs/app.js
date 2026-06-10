@@ -8,13 +8,13 @@ if (tg) {
   }
 }
 
-const uid = new URLSearchParams(window.location.search).get("uid")
-  || tg?.initDataUnsafe?.user?.id
-  || null;
+const uid = tg?.initDataUnsafe?.user?.id || null;
 
 // ── API helpers ────────────────────────────────────────────────
 async function api(method, path, body) {
   const opts = { method, headers: { "Content-Type": "application/json" } };
+  // Server validates this HMAC-signed payload and matches it against the uid in the URL
+  if (tg?.initData) opts.headers["X-Telegram-Init-Data"] = tg.initData;
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

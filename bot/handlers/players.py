@@ -45,7 +45,8 @@ async def handle_player_input(message: Message, session: AsyncSession, state: FS
         return
 
     name = message.text.strip()[:64]
-    name = name.replace("'", "").replace('"', "").replace("\\", "").replace("`", "").strip()
+    # also strip _ * [ ] — they break legacy-Markdown in bot messages
+    name = name.translate(str.maketrans("", "", "'\"\\`_*[]")).strip()
     if not name:
         return
 
