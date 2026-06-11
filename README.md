@@ -84,7 +84,7 @@ location /tourney-api/ {
 }
 ```
 
-> Бот отдаёт Mini App и API на одном порту: статику из `docs/`, API по пути `api/`.
+> Бот отдаёт Mini App и API на одном порту: статику из `webapp/`, API по пути `api/`.
 
 ### 4. Запустите
 
