@@ -525,7 +525,7 @@ async def api_options(request: web.Request) -> web.Response:
 # ── Static + routing ──────────────────────────────────────────────────────────
 
 async def start_webapp(bot: Bot) -> web.AppRunner:
-    miniapp_dir = Path(__file__).parent.parent / "docs"
+    miniapp_dir = Path(__file__).parent.parent / "webapp"
 
     async def index(request: web.Request) -> web.Response:
         return web.FileResponse(miniapp_dir / "index.html")
