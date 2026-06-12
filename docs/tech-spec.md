@@ -95,6 +95,7 @@ Telegram ──────────┐
 
 ### 3.5 Error handling strategy
 
+- API handlers return HTTP 403 when `_require_auth` fails (missing, expired, or mismatched initData).
 - API handlers return HTTP 400 for missing/invalid input; 404 if no `GameState` row exists for the uid.
 - `_sync_inline`, `_sync_inline_finished`, `_create_inline_for_web` all catch all exceptions and log at DEBUG level — Telegram sync failures never abort the primary API response.
 - `api_match`: if the target match is not ready (slots not filled), returns `{"ok": false, "error": "match not ready"}` — JS guards on `data.ok && data.matches` before re-rendering.
@@ -138,15 +139,13 @@ Tourney/
 │       ├── fr.json            # French strings
 │       ├── pt-br.json         # Portuguese (Brazil) strings
 │       └── uk.json            # Ukrainian strings
-├── docs/                      # Mini App static files (served by aiohttp)
+├── webapp/                    # Mini App static files (served by aiohttp, copied in Dockerfile)
 │   ├── index.html             # SPA shell — 5 screen divs, no framework
 │   ├── app.js                 # All client logic: routing, bracket renderer, API calls
 │   └── style.css              # CSS custom properties, dark/light themes, bracket layout
-├── _docs/
-│   ├── tech-spec-example.css  # CSS template for this document
-│   ├── tech-spec.md           # ← this file
-│   └── tech-spec.html         # Rendered HTML version
-├── Dockerfile                 # python:3.12-slim, copies bot/ and docs/, CMD python -m bot.main
+├── docs/                      # Developer documentation (not served; not copied into Docker image)
+│   └── tech-spec.md           # ← this file
+├── Dockerfile                 # python:3.12-slim, copies bot/ and webapp/, CMD python -m bot.main
 ├── docker-compose.yml         # Services: bot (port 8003) + db (postgres:16-alpine, volume pgdata)
 ├── requirements.txt           # Python dependencies
 ├── .env.example               # Environment variable template
@@ -286,20 +285,61 @@ There is no Alembic migration history. On every container startup, `init_db()` c
 
 ## 7. Authentication & First-Launch Setup
 
-There is no authentication layer. Users are identified by their Telegram `chat.id` only. The Mini App passes `uid` as a URL query parameter (`?uid={chat_id}`), derived from either the URL or `tg.initDataUnsafe.user.id` on the client side. There is no server-side validation of the uid beyond checking it is a digit string.
+### 7.1 Mini App API authentication (initData HMAC)
 
-### First-launch flow (inline mode)
+All REST API endpoints require a valid Telegram `initData` payload. Authentication is implemented in `_require_auth(request)` and `_validate_init_data(init_data)` in `bot/main.py`.
+
+**`_validate_init_data(init_data: str) → int | None`**
+
+Implements the [Telegram WebApp data validation spec](https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app):
+
+```
+pairs   = parse_qsl(init_data)
+data    = dict(pairs)
+received_hash = data.pop("hash")
+check_string  = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+secret  = hmac_sha256(key=b"WebAppData", msg=BOT_TOKEN)
+expected = hmac_sha256(key=secret, msg=check_string).hexdigest()
+```
+
+Returns the authenticated Telegram user `id` (int) if:
+- HMAC matches (`hmac.compare_digest`)
+- `auth_date` is within `INIT_DATA_MAX_AGE = 86 400` seconds of `time.time()`
+- `user.id` can be extracted from `data["user"]` JSON
+
+Returns `None` otherwise (any exception is also caught → `None`).
+
+**`_require_auth(request) → int`**
+
+1. Reads `uid` from `request.match_info["uid"]`; raises HTTP 400 if not a digit string.
+2. Reads header `X-Telegram-Init-Data`.
+3. Calls `_validate_init_data`; raises HTTP 403 if result is `None` or does not equal `uid`.
+4. Returns the authenticated `uid` (int).
+
+**CORS header** now includes `X-Telegram-Init-Data` in the allowed headers:
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: Content-Type, X-Telegram-Init-Data
+```
+
+**Client side:** every `api()` call in `app.js` attaches the header:
+```javascript
+if (tg?.initData) opts.headers["X-Telegram-Init-Data"] = tg.initData;
+```
+`uid` is taken exclusively from `tg.initDataUnsafe.user.id` (URL `?uid=` param was removed).
+
+### 7.2 First-launch flow (inline mode)
 
 1. User sends `/start` to the bot.
 2. `cmd_start` calls `get_or_create_user(session, message)`.
 3. If no `User` row exists: reads `message.from_user.language_code`, calls `normalize_lang()` to map to a supported locale code (prefix match; falls back to `"en"`). Creates `User` and an empty `GameState(user_id=chat_id)` in the same session and commits.
 4. Bot replies with `t(lang, "hi", name=first_name)`.
 
-### First-launch flow (Mini App)
+### 7.3 First-launch flow (Mini App)
 
-1. User opens the Mini App without having used the bot.
-2. JS reads `uid` from URL or `tg.initDataUnsafe.user.id`.
-3. `GET /api/game/{uid}` → if no `GameState` row, returns `{"status": "idle", "format": "", "players": [], "matches": []}`.
+1. User opens the Mini App; JS reads `uid` from `tg.initDataUnsafe.user.id`.
+2. `GET /api/game/{uid}` with `X-Telegram-Init-Data` header → server validates HMAC.
+3. If no `GameState` row, returns `{"status": "idle", "format": "", "players": [], "matches": []}`.
 4. JS `route(data)` → `!data.format` → calls `resetToFormat()` → shows `screen-format`.
 5. No `User` row is created until the user starts the bot inline (`/start`). The Mini App can create a `GameState` row via the POST endpoints (e.g. `api_new` calls `GameState(user_id=uid)` if none exists), but `User` is only created through `/start`.
 
@@ -309,18 +349,18 @@ There is no authentication layer. Users are identified by their Telegram `chat.i
 
 ### 8.1 REST API endpoints
 
-All endpoints under `/api/game/{uid}`. CORS headers (`Access-Control-Allow-Origin: *`) are added to every response.
+All endpoints under `/api/game/{uid}`. Every request (except OPTIONS) must include the `X-Telegram-Init-Data` header; the server validates HMAC and matches the extracted user id against `{uid}` — HTTP 403 on mismatch. CORS headers are added to every response.
 
 | Method | Path | Body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/game/{uid}` | — | `{status, format, players, matches, last_m, ranking}` | Always returns current state; `ranking` always computed if matches exist |
 | POST | `/api/game/{uid}/new` | — | `{"ok": true}` | Resets GameState to defaults; also removes webapp button from old keyboard message |
 | POST | `/api/game/{uid}/format` | `{"format": "single_elim"}` | `{"ok": true}` | Validates against 3 known values; 400 otherwise |
-| POST | `/api/game/{uid}/players` | `{"players": ["A","B",...]}` | `{"ok": true, "players": [...]}` | Stores as `players_pending` in state_json; min 2 required |
+| POST | `/api/game/{uid}/players` | `{"players": ["A","B",...]}` | `{"ok": true, "players": [...]}` | Server strips `'`, `"`, `\`, `` ` ``, `_`, `*`, `[`, `]`; truncates to 64 chars; min 2 names required |
 | POST | `/api/game/{uid}/start` | — | `{ok, format, status, players, matches, last_m}` | Initialises bracket; triggers `_create_inline_for_web` if `kbd_message_id == 0` |
-| POST | `/api/game/{uid}/match` | `{"m_idx": 0, "winner_slot": 1}` | `{ok, format, finished, ranking, status, players, matches, last_m}` | Returns `{"ok": false}` if match not ready |
-| POST | `/api/game/{uid}/undo` | `{"m_idx": 0}` | `{ok, format, players, matches, last_m}` | Resets status to "active" |
-| OPTIONS | `/api/game/{uid}/{tail:.*}` | — | Empty 200 | CORS preflight |
+| POST | `/api/game/{uid}/match` | `{"m_idx": 0, "winner_slot": 1}` | `{ok, format, finished, ranking, status, players, matches, last_m}` | `m_idx` must be non-negative int; returns `{"ok": false}` if match not ready |
+| POST | `/api/game/{uid}/undo` | `{"m_idx": 0}` | `{ok, format, players, matches, last_m}` | `m_idx` must be non-negative int; resets status to "active" |
+| OPTIONS | `/api/game/{uid}/{tail:.*}` | — | Empty 200 | CORS preflight; no auth required |
 
 ### 8.2 `matches` field enrichment (`_assign_rounds`)
 
@@ -388,7 +428,7 @@ If `uid` is null, shows an `alert("Открой через Telegram бот")` an
 
 **Action on "Начать турнир →":**
 1. Reads names via `getPlayerLines()`.
-2. `POST /api/game/{uid}/players` with `{players: names}`.
+2. `POST /api/game/{uid}/players` with `{players: names}`. Server additionally strips Markdown-breaking characters (`'`, `"`, `\`, `` ` ``, `_`, `*`, `[`, `]`) and truncates each name to 64 chars.
 3. `POST /api/game/{uid}/start`.
 4. Calls `renderGame(data)` with the start response.
 5. Shows `screen-game`; starts 4 000 ms refresh timer.
@@ -582,9 +622,8 @@ The Mini App is opened via the Telegram menu button or an inline keyboard `WebAp
 https://{WEBAPP_URL}?uid={chat_id}
 ```
 
-- `uid` is the Telegram `chat.id` of the user.
-- No other URL parameters are used.
-- The app also reads uid from `tg.initDataUnsafe.user.id` as a fallback.
+- `uid` in the URL was previously used as a fallback; it is now **ignored** by the client. The client reads `uid` exclusively from `tg.initDataUnsafe.user.id` (available only inside Telegram WebApp context).
+- The `?uid=` param in the button URL is kept for visual context in BotFather settings but carries no functional role after the auth audit.
 
 ### 12.3 FSM state transitions
 
@@ -653,10 +692,10 @@ docker compose logs -f         # monitor logs
 1. Base: `python:3.12-slim`
 2. `WORKDIR /app`
 3. `COPY requirements.txt .` → `pip install --no-cache-dir -r requirements.txt`
-4. `COPY bot/ ./bot/` and `COPY docs/ ./docs/`
+4. `COPY bot/ ./bot/` and `COPY webapp/ ./webapp/`
 5. `CMD ["python", "-m", "bot.main"]`
 
-Note: `docs/` is copied into the container image. Static file updates require a rebuild and restart.
+Note: `webapp/` is copied into the container image. Static file updates require a rebuild and restart. The `docs/` folder (developer documentation) is **not** copied into the image.
 
 ---
 
